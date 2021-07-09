@@ -1,0 +1,95 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Socket Thing1</title>
+</head>
+<body>
+<div style="width: 250px;">
+
+</div>
+<form >
+  <label>
+    Message
+    <input id="to" type="text" name="demo"/>
+    <input id="message" type="text" name="demo"/>
+  </label>
+  <button type="submit">Send Msg</button>
+</form>
+
+</body>
+<script>
+  let granted = false;
+  if (Notification.permission === 'granted') {
+    granted = true;
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission()
+    .then(value => {
+      console.log(value)
+      granted = value === 'granted' ? true : false;
+    })
+
+  }
+  // Create WebSocket connection.
+  const socket = new WebSocket('ws://localhost:3000?q='+window.location.hash[1]);
+  // const socket1 = new WebSocket('ws://localhost:3000/person/socket');
+  // socket1.addEventListener('open',function(event){
+  //   console.log(event,'connected to person')
+  // })
+  // socket1.addEventListener('message',function(event){
+  //   console.log('event',event)
+  //  // if(granted){
+  //  //   const greeting = new Notification('Hi, How are you?',{
+  //  //     body: event.data,
+  //  //
+  //  //   });
+  //  //   setTimeout(() => {
+  //  //     greeting.close();
+  //  //   }, 20*1000);
+  //  // }
+  //   document.querySelector('div').innerHTML = '';
+  //   JSON.parse(event.data).forEach(item=>{
+  //     let node = document.createElement('p');
+  //     node.innerText = `${item['name']} ${item['_id']}`
+  //     document.querySelector('div').append(node)
+  //   })
+  // })
+  // Connection opened
+  socket.addEventListener('open', function (event) {
+    console.log('Connected to WS Server')
+  });
+
+  document.querySelector('form')
+  .addEventListener('submit',function(e){
+    e.preventDefault();
+    sendMessage()
+  })
+
+
+  // Listen for messages
+  socket.addEventListener('message', function (event) {
+    let node = document.createElement('p')
+    node.innerText = JSON.parse(event.data)['message'] + "     from "+JSON.parse(event.data)['from']
+    document.querySelector('div').append(node)
+    console.log('Message from server ', event.data);
+  });
+
+  const sendMessage = () => {
+    if(document.getElementById('message').value){
+
+      socket.send(JSON.stringify({
+        message: document.getElementById('message').value,
+        to: document.getElementById('to').value,
+        from: window.location.hash[1],
+      }))
+      let node = document.createElement('p')
+      node.style.textAlign='right'
+      node.innerText = document.querySelector('input').value
+      document.querySelector('div').append(node)
+      document.getElementById('message').value= '';
+    }
+  }
+</script>
+</html>

@@ -1,0 +1,156 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('web-socket:server');
+var http = require('http');
+const mongoose = require('mongoose')
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+var expressWs = require('express-ws')(app, server)
+const WebSocket = require('ws');
+//
+// const wss = new WebSocket.Server({ server:server });
+//
+// wss.on('connection', function connection(ws) {
+//   console.log('A new client Connected!');
+//   // ws.send('Welcome New Client!');
+//
+//   ws.on('message', function incoming(message) {
+//
+//     wss.clients.forEach(function each(client) {
+//       if (client !== ws && client.readyState === WebSocket.OPEN) {
+//         client.send(message);
+//       }
+//     });
+//
+//   });
+//
+// });
+const personSchema = new mongoose.Schema({
+    name: String
+});
+const Person = mongoose.model('Person', personSchema, 'Person');
+
+// Create a change stream. The 'change' event gets emitted when there's a
+// change in the database
+app.ws('/person/socket', function (ws, req) {
+    Person.watch().on('change', async data => {
+        let change = data['fullDocument']
+        if(ws.readyState=== WebSocket.OPEN){
+            ws.send(JSON.stringify(await Person.find({})));
+        }
+    });
+    ws.on('message', async function (msg) {
+        console.log(msg);
+
+        expressWs.getWss().clients.forEach(async function each(client) {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+                client.send(msg);
+            }
+        });
+    });
+    console.log('socket', req.testing);
+});
+var CLIENTS = {}
+app.ws('/', function (ws, req) {
+    CLIENTS[req.query['q']] = ws
+    //
+    console.log(CLIENTS)
+    ws.on('message', async function (msg) {
+        // console.log(msg);
+        let decode = JSON.parse(msg)
+        console.log(decode,Object.keys(CLIENTS))
+        if(decode.to !== decode.from){
+            CLIENTS[decode.to].send(msg)
+        }
+        // expressWs.getWss().clients.forEach(async function each(client) {
+        //     // if (client !== ws && client.readyState === WebSocket.OPEN) {
+        //     //     client.send(msg);
+        //     // }
+        // });
+    });
+});
+
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+    var port = parseInt(val, 10);
+
+    if (isNaN(port)) {
+        // named pipe
+        return val;
+    }
+
+    if (port >= 0) {
+        // port number
+        return port;
+    }
+
+    return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+    if (error.syscall !== 'listen') {
+        throw error;
+    }
+
+    var bind = typeof port === 'string'
+        ? 'Pipe ' + port
+        : 'Port ' + port;
+
+    // handle specific listen errors with friendly messages
+    switch (error.code) {
+        case 'EACCES':
+            console.error(bind + ' requires elevated privileges');
+            process.exit(1);
+            break;
+        case 'EADDRINUSE':
+            console.error(bind + ' is already in use');
+            process.exit(1);
+            break;
+        default:
+            throw error;
+    }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+    var addr = server.address();
+    var bind = typeof addr === 'string'
+        ? 'pipe ' + addr
+        : 'port ' + addr.port;
+    debug('Listening on ' + bind);
+}
